@@ -2,7 +2,7 @@ import hashlib
 import re
 from urllib.parse import urldefrag, urljoin, urlparse, parse_qsl
 from bs4 import BeautifulSoup
-from stats import STATS, simhash, tokenize
+from stats import STATS, tokenize
 
 ALLOWED_DOMAINS = (
     "ics.uci.edu",
@@ -16,7 +16,6 @@ MAX_PATH_DEPTH = 10
 MAX_QUERY_PARAMS = 6
 MAX_PAGE_SIZE = 8 * 1024 * 1024  
 MIN_WORDS_PER_PAGE = 50
-DUPLICATE_THRESHOLD = 3
 
 # File extensions
 BAD_EXTENSIONS = re.compile(
@@ -75,10 +74,8 @@ def extract_next_links(url, resp):
         return []
     if resp.raw_response is None or not resp.raw_response.content:
         return []
-
     if len(resp.raw_response.content) > MAX_PAGE_SIZE:
         return []
-
     final_url, _ = urldefrag(resp.url or url)
     if not _in_scope(final_url):
         return []
@@ -102,10 +99,9 @@ def extract_next_links(url, resp):
         text_hash = hashlib.md5(
             " ".join(tokens).encode("utf-8", "ignore")
         ).hexdigest()
-        fingerprint = simhash(tokens)
-        if STATS.is_duplicate(text_hash, fingerprint, DUPLICATE_THRESHOLD):
+        if STATS.is_duplicate(text_hash):
             return []
-        STATS.add_fingerprint(text_hash, fingerprint)
+        STATS.mark_seen(text_hash)
 
     base_tag = soup.find("base", href=True)
     base = base_tag["href"].strip() if base_tag else final_url
